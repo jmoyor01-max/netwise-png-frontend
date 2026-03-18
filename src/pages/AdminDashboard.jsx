@@ -60,45 +60,59 @@ export default function AdminDashboard() {
   }
 
   const handleDelete = async (id) => {
+    if (!window.confirm('Delete this module?')) return
     await supabase.from('modules').delete().eq('id', id)
     fetchModules()
   }
 
+  const statCards = [
+    { num: modules.length, label: 'Total modules', icon: '📚' },
+    { num: users.length, label: 'Registered users', icon: '👥' },
+    { num: modules.filter(m => m.language === 'Tok Pisin').length, label: 'Tok Pisin modules', icon: '🇵🇬' },
+    { num: modules.filter(m => m.language === 'English').length, label: 'English modules', icon: '🌐' },
+  ]
+
   return (
-    <div>
+    <div style={styles.page}>
       <Navbar lang={lang} setLang={setLang} isAdmin={true} />
+
       <div style={styles.header}>
-        <h1 style={styles.title}>Admin Dashboard</h1>
-        <span style={styles.pill}>Administrator</span>
+        <div style={styles.headerContent}>
+          <h1 style={styles.title}>Admin Dashboard</h1>
+          <span style={styles.pill}>Administrator</span>
+        </div>
       </div>
-      <div style={styles.statsRow}>
-        {[
-          { num: modules.length, label: 'Total modules' },
-          { num: users.length, label: 'Registered users' },
-          { num: modules.filter(m => m.language === 'Tok Pisin').length, label: 'Tok Pisin modules' },
-          { num: modules.filter(m => m.language === 'English').length, label: 'English modules' },
-        ].map((s, i) => (
-          <div key={i} style={styles.statCard}>
+
+      <div style={styles.statsGrid}>
+        {statCards.map((s, i) => (
+          <div key={i} style={{ ...styles.statCard, animationDelay: `${i * 0.1}s` }}>
+            <div style={styles.statIcon}>{s.icon}</div>
             <div style={styles.statNum}>{s.num}</div>
             <div style={styles.statLabel}>{s.label}</div>
           </div>
         ))}
       </div>
+
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>{editId ? 'Edit module' : 'Add new module'}</h2>
-        <input style={styles.input} placeholder="Module title" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-        <textarea style={styles.textarea} placeholder="Module content" value={newContent} onChange={e => setNewContent(e.target.value)} rows={4} />
-        <select style={styles.select} value={newLang} onChange={e => setNewLang(e.target.value)}>
-          <option>English</option>
-          <option>Tok Pisin</option>
-        </select>
-        <button style={styles.saveBtn} onClick={handleSave} disabled={loading}>
-          {loading ? 'Saving...' : editId ? 'Update module' : 'Add module'}
-        </button>
-        {editId && <button style={styles.cancelBtn} onClick={() => { setEditId(null); setNewTitle(''); setNewContent('') }}>Cancel</button>}
+        <h2 style={styles.sectionTitle}>{editId ? '✏️ Edit module' : '➕ Add new module'}</h2>
+        <div style={styles.form}>
+          <input style={styles.input} placeholder="Module title" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+          <textarea style={styles.textarea} placeholder="Module content" value={newContent} onChange={e => setNewContent(e.target.value)} rows={4} />
+          <div style={styles.formRow}>
+            <select style={styles.select} value={newLang} onChange={e => setNewLang(e.target.value)}>
+              <option>English</option>
+              <option>Tok Pisin</option>
+            </select>
+            <button style={styles.saveBtn} onClick={handleSave} disabled={loading}>
+              {loading ? 'Saving...' : editId ? 'Update module' : 'Add module'}
+            </button>
+            {editId && <button style={styles.cancelBtn} onClick={() => { setEditId(null); setNewTitle(''); setNewContent('') }}>Cancel</button>}
+          </div>
+        </div>
       </div>
+
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>All modules</h2>
+        <h2 style={styles.sectionTitle}>📚 All modules ({modules.length})</h2>
         {modules.length === 0 ? (
           <p style={styles.empty}>No modules yet. Add one above!</p>
         ) : (
@@ -121,8 +135,9 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
       <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>Registered users ({users.length})</h2>
+        <h2 style={styles.sectionTitle}>👥 Registered users ({users.length})</h2>
         <div style={styles.table}>
           <div style={styles.tableHead}>
             <span>Username</span>
@@ -133,7 +148,7 @@ export default function AdminDashboard() {
             <div key={u.id} style={styles.tableRow}>
               <span style={styles.rowTitle}>{u.username}</span>
               <span style={styles.rowLang}>{u.email}</span>
-              <span style={{ ...styles.rowLang, color: u.role === 'admin' ? '#A32D2D' : '#185FA5' }}>{u.role}</span>
+              <span style={{ ...styles.roleBadge, background: u.role === 'admin' ? 'rgba(226,75,74,0.15)' : 'rgba(255,255,255,0.05)', color: u.role === 'admin' ? '#fca5a5' : 'rgba(255,255,255,0.4)' }}>{u.role}</span>
             </div>
           ))}
         </div>
@@ -143,27 +158,33 @@ export default function AdminDashboard() {
 }
 
 const styles = {
-  header: { background: '#2C2C2A', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#fff', fontSize: '18px', fontWeight: '600' },
-  pill: { background: '#3C3489', color: '#CECBF6', fontSize: '11px', padding: '4px 12px', borderRadius: '20px' },
-  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', padding: '1.25rem 1.5rem' },
-  statCard: { background: '#f5f5f5', borderRadius: '8px', padding: '1rem' },
-  statNum: { fontSize: '24px', fontWeight: '700', color: '#1a1a1a' },
-  statLabel: { fontSize: '12px', color: '#666', marginTop: '4px' },
-  section: { padding: '1.25rem 1.5rem', borderTop: '0.5px solid #f0f0f0' },
-  sectionTitle: { fontSize: '15px', fontWeight: '600', color: '#1a1a1a', marginBottom: '1rem' },
-  input: { width: '100%', padding: '10px 12px', border: '0.5px solid #ddd', borderRadius: '6px', fontSize: '14px', marginBottom: '10px', outline: 'none', display: 'block' },
-  textarea: { width: '100%', padding: '10px 12px', border: '0.5px solid #ddd', borderRadius: '6px', fontSize: '14px', marginBottom: '10px', outline: 'none', resize: 'vertical', display: 'block', fontFamily: 'inherit' },
-  select: { padding: '10px 12px', border: '0.5px solid #ddd', borderRadius: '6px', fontSize: '14px', marginBottom: '10px', outline: 'none', marginRight: '10px' },
-  saveBtn: { background: '#E24B4A', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', marginRight: '8px' },
-  cancelBtn: { background: '#f0f0f0', color: '#666', border: 'none', padding: '10px 20px', borderRadius: '6px', fontSize: '13px' },
-  empty: { color: '#999', fontSize: '13px' },
-  table: { border: '0.5px solid #f0f0f0', borderRadius: '8px', overflow: 'hidden' },
-  tableHead: { display: 'grid', gridTemplateColumns: '2fr 1fr 120px', background: '#f5f5f5', padding: '8px 12px', fontSize: '12px', color: '#666', borderBottom: '0.5px solid #f0f0f0' },
-  tableRow: { display: 'grid', gridTemplateColumns: '2fr 1fr 120px', padding: '10px 12px', fontSize: '13px', borderBottom: '0.5px solid #f0f0f0', alignItems: 'center' },
-  rowTitle: { fontWeight: '500', color: '#1a1a1a' },
-  rowLang: { color: '#666', fontSize: '12px' },
-  rowActions: { display: 'flex', gap: '6px' },
-  editBtn: { fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '0.5px solid #ddd', background: '#fff', color: '#444', cursor: 'pointer' },
-  deleteBtn: { fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '0.5px solid #F7C1C1', background: '#FCEBEB', color: '#A32D2D', cursor: 'pointer' },
+  page: { background: '#060a14', minHeight: '100vh' },
+  header: { padding: '2rem 2rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' },
+  headerContent: { display: 'flex', alignItems: 'center', gap: '1rem', animation: 'fadeUp 0.5s ease both' },
+  title: { color: '#fff', fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px' },
+  pill: { background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', color: '#a78bfa', fontSize: '11px', padding: '4px 14px', borderRadius: '20px', fontWeight: '700' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', padding: '1.5rem 2rem' },
+  statCard: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', padding: '1.25rem', animation: 'fadeUp 0.5s ease both' },
+  statIcon: { fontSize: '24px', marginBottom: '10px', animation: 'float 4s ease-in-out infinite' },
+  statNum: { fontSize: '28px', fontWeight: '800', color: '#E24B4A', marginBottom: '4px' },
+  statLabel: { fontSize: '12px', color: 'rgba(255,255,255,0.35)' },
+  section: { padding: '1.5rem 2rem', borderTop: '1px solid rgba(255,255,255,0.05)' },
+  sectionTitle: { color: '#fff', fontSize: '16px', fontWeight: '700', marginBottom: '1.25rem' },
+  form: { display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '700px' },
+  formRow: { display: 'flex', gap: '10px', alignItems: 'center' },
+  input: { padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '14px', color: '#fff', outline: 'none', fontFamily: 'inherit' },
+  textarea: { padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '14px', color: '#fff', outline: 'none', resize: 'vertical', fontFamily: 'inherit' },
+  select: { padding: '12px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '14px', color: '#fff', outline: 'none', fontFamily: 'inherit' },
+  saveBtn: { background: '#E24B4A', color: '#fff', border: 'none', padding: '12px 22px', borderRadius: '8px', fontSize: '13px', fontWeight: '700', animation: 'glowPulse 3s ease-in-out infinite' },
+  cancelBtn: { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)', padding: '12px 22px', borderRadius: '8px', fontSize: '13px' },
+  empty: { color: 'rgba(255,255,255,0.3)', fontSize: '13px' },
+  table: { border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', overflow: 'hidden' },
+  tableHead: { display: 'grid', gridTemplateColumns: '2fr 1fr 140px', background: 'rgba(255,255,255,0.03)', padding: '10px 16px', fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid rgba(255,255,255,0.05)' },
+  tableRow: { display: 'grid', gridTemplateColumns: '2fr 1fr 140px', padding: '14px 16px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.05)', alignItems: 'center', transition: 'background 0.15s' },
+  rowTitle: { fontWeight: '600', color: '#fff' },
+  rowLang: { color: 'rgba(255,255,255,0.4)', fontSize: '12px' },
+  roleBadge: { fontSize: '11px', padding: '3px 10px', borderRadius: '20px', fontWeight: '700', display: 'inline-block' },
+  rowActions: { display: 'flex', gap: '8px' },
+  editBtn: { fontSize: '12px', padding: '5px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' },
+  deleteBtn: { fontSize: '12px', padding: '5px 12px', borderRadius: '6px', border: '1px solid rgba(226,75,74,0.3)', background: 'rgba(226,75,74,0.1)', color: '#fca5a5', cursor: 'pointer' },
 }
