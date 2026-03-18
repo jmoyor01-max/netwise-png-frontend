@@ -15,7 +15,7 @@ export default function Modules() {
       const { data } = await supabase.auth.getUser()
       if (!data.user) { navigate('/login'); return }
       setUser(data.user)
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
       if (profile?.role === 'admin') setIsAdmin(true)
       const { data: mods } = await supabase.from('modules').select('*')
       setModules(mods || [])

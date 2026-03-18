@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     const init = async () => {
       const { data } = await supabase.auth.getUser()
       if (!data.user) { navigate('/login'); return }
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
       if (profile?.role !== 'admin') { navigate('/home'); return }
       fetchModules()
       fetchUsers()

@@ -11,14 +11,42 @@ export default function Register() {
   const navigate = useNavigate()
 
   const handleRegister = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-    const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { username } } })
-    if (error) { setError(error.message); setLoading(false); return }
-    await supabase.from('profiles').insert({ id: data.user.id, username, email, role: 'user' })
-    navigate('/home')
+  e.preventDefault()
+  setLoading(true)
+  setError('')
+
+  const { data, error: signUpError } = await supabase.auth.signUp({ 
+    email, 
+    password, 
+    options: { data: { username } } 
+  })
+
+  if (signUpError) { 
+    setError(signUpError.message)
+    setLoading(false)
+    return 
   }
+
+  if (data.user) {
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({ 
+        id: data.user.id, 
+        username, 
+        email, 
+        role: 'user' 
+      })
+    
+    if (profileError) {
+      console.error('Profile error:', profileError.message)
+      setError('Account created but profile setup failed: ' + profileError.message)
+      setLoading(false)
+      return
+    }
+  }
+
+  navigate('/home')
+}
 
   return (
     <div style={styles.page}>

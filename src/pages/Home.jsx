@@ -16,11 +16,12 @@ export default function Home() {
       if (!data.user) { navigate('/login'); return }
       setUser(data.user)
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single()
-      if (profile?.role === 'admin') setIsAdmin(true)
+  .from('profiles')
+  .select('role')
+  .eq('id', data.user.id)
+  .maybeSingle()
+console.log('Profile role:', profile?.role)
+if (profile?.role === 'admin') setIsAdmin(true)
     }
     getUser()
   }, [])
