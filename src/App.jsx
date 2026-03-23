@@ -16,6 +16,8 @@ export default function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/modules" element={<Modules />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/quizzes" element={<Navigate to="/modules" />} />
+        <Route path="/progress" element={<Navigate to="/home" />} />
       </Routes>
     </BrowserRouter>
   )
