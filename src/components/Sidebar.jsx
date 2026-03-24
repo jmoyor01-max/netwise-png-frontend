@@ -12,12 +12,13 @@ export default function Sidebar({ lang, setLang, isAdmin }) {
   }
 
   const navItems = [
-    { path: '/home', icon: '🏠', label: 'Home' },
-    { path: '/modules', icon: '📚', label: 'Modules' },
-    { path: '/quizzes', icon: '🧠', label: 'Quizzes' },
-    { path: '/progress', icon: '📊', label: 'Progress' },
-    ...(isAdmin ? [{ path: '/admin', icon: '⚙️', label: 'Admin', badge: 'You' }] : []),
-  ]
+  { path: '/home', icon: '🏠', label: 'Home' },
+  { path: '/modules', icon: '📚', label: 'Modules' },
+  { path: '/badges', icon: '🏆', label: 'Badges' },
+  { path: '/quizzes', icon: '🧠', label: 'Quizzes' },
+  { path: '/progress', icon: '📊', label: 'Progress' },
+  ...(isAdmin ? [{ path: '/admin', icon: '⚙️', label: 'Admin', badge: 'You' }] : []),
+]
 
   return (
     <div style={styles.sidebar}>

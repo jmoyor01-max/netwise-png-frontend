@@ -4,12 +4,14 @@ import { supabase } from '../supabase'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 import ScamAlert from '../components/ScamAlert'
+import BadgeSummary from '../components/BadgeSummary'
 
 export default function Home() {
   const [user, setUser] = useState(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [lang, setLang] = useState('en')
   const navigate = useNavigate()
+  const [badges, setBadges] = useState([])
 
   useEffect(() => {
     const getUser = async () => {
@@ -18,6 +20,9 @@ export default function Home() {
       setUser(data.user)
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
       if (profile?.role === 'admin') setIsAdmin(true)
+      const { data: progress } = await supabase.from('progress').select('*').eq('user_id', data.user.id).eq('badge_earned', true)
+setBadges(progress || [])
+      
     }
     getUser()
   }, [])
@@ -81,6 +86,10 @@ export default function Home() {
             <div style={styles.heroRight}>
               <ScamAlert lang={lang} />
             </div>
+          </div>
+
+          <div style={{ marginBottom: '2rem' }}>
+             <BadgeSummary badges={badges} lang={lang} />
           </div>
 
           <div style={styles.modulesSection}>

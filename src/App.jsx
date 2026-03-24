@@ -5,6 +5,7 @@ import Register from './pages/Register'
 import Home from './pages/Home'
 import Modules from './pages/Modules'
 import AdminDashboard from './pages/AdminDashboard'
+import Badges from './pages/Badges'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/quizzes" element={<Navigate to="/modules" />} />
         <Route path="/progress" element={<Navigate to="/home" />} />
+        <Route path="/badges" element={<Badges />} />
       </Routes>
     </BrowserRouter>
   )
