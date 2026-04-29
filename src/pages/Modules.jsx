@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 
+
 export default function Modules() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [lang, setLang] = useState('en')
@@ -56,14 +57,24 @@ export default function Modules() {
                   </div>
                   <div style={styles.cardTitle}>{mod.title}</div>
                   <div style={styles.cardContent}>{mod.content?.substring(0, 120)}...</div>
-                  <div style={styles.cardFooter}>
-                    <span style={styles.langTag}>{mod.language}</span>
-                    <button style={styles.readBtn}
-                      onMouseEnter={e => e.currentTarget.style.transform = 'translateX(3px)'}
-                      onMouseLeave={e => e.currentTarget.style.transform = 'translateX(0)'}>
-                      {lang === 'en' ? 'Read →' : 'Ridim →'}
-                    </button>
-                  </div>
+                 <div style={styles.cardFooter}>
+  <span style={styles.langTag}>{mod.language}</span>
+  <div style={{ display: 'flex', gap: '8px' }}>
+    <button style={styles.readBtn}
+      onMouseEnter={e => e.currentTarget.style.transform = 'translateX(3px)'}
+      onMouseLeave={e => e.currentTarget.style.transform = 'translateX(0)'}>
+      {lang === 'en' ? 'Read →' : 'Ridim →'}
+    </button>
+    <button
+      style={styles.quizBtn}
+      onClick={() => navigate(`/quiz/${mod.id}`)}
+      onMouseEnter={e => e.currentTarget.style.background = 'rgba(14,165,233,0.2)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'rgba(14,165,233,0.08)'}
+    >
+      {lang === 'en' ? 'Quiz 🧠' : 'Kwis 🧠'}
+    </button>
+  </div>
+</div>
                 </div>
               ))}
             </div>
@@ -95,4 +106,5 @@ const styles = {
   cardFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem' },
   langTag: { fontSize: '10px', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.2)', color: '#38bdf8', padding: '3px 10px', borderRadius: '20px', fontWeight: '600' },
   readBtn: { fontSize: '12px', background: 'transparent', color: '#0ea5e9', border: 'none', fontWeight: '700', transition: 'transform 0.2s', cursor: 'pointer' },
+  quizBtn: { fontSize: '12px', background: 'rgba(14,165,233,0.08)', color: '#38bdf8', border: '1px solid rgba(14,165,233,0.2)', padding: '6px 14px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
 }

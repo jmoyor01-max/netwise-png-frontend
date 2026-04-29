@@ -4,7 +4,17 @@ import { supabase } from '../supabase'
 export default function Sidebar({ lang, setLang, isAdmin }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const isActive = (path) => location.pathname === path
+
+  const isActive = (path) => {
+    if (path === '/modules') {
+      return (
+        location.pathname === '/modules' ||
+        location.pathname.startsWith('/module/') ||
+        location.pathname.startsWith('/quiz/')
+      )
+    }
+    return location.pathname === path
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -12,13 +22,12 @@ export default function Sidebar({ lang, setLang, isAdmin }) {
   }
 
   const navItems = [
-  { path: '/home', icon: '🏠', label: 'Home' },
-  { path: '/modules', icon: '📚', label: 'Modules' },
-  { path: '/badges', icon: '🏆', label: 'Badges' },
-  { path: '/quizzes', icon: '🧠', label: 'Quizzes' },
-  { path: '/progress', icon: '📊', label: 'Progress' },
-  ...(isAdmin ? [{ path: '/admin', icon: '⚙️', label: 'Admin', badge: 'You' }] : []),
-]
+    { path: '/home',    icon: '🏠', label: 'Home' },
+    { path: '/modules', icon: '📚', label: 'Modules' },
+    { path: '/badges',  icon: '🏆', label: 'Badges' },
+    { path: '/news',    icon: '📰', label: 'News' },
+    ...(isAdmin ? [{ path: '/admin', icon: '⚙️', label: 'Admin', badge: 'You' }] : []),
+  ]
 
   return (
     <div style={styles.sidebar}>
@@ -31,7 +40,7 @@ export default function Sidebar({ lang, setLang, isAdmin }) {
       <nav style={styles.nav}>
         {navItems.map((item) => (
           <Link
-            key={item.path}
+            key={item.label}
             to={item.path}
             style={{
               ...styles.navItem,
@@ -116,17 +125,8 @@ const styles = {
     boxShadow: '0 6px 18px rgba(14,165,233,0.4)',
     animation: 'glowPulse 3s ease-in-out infinite',
   },
-  logoText: {
-    color: '#fff',
-    fontSize: '12px',
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  logoSub: {
-    color: 'rgba(255,255,255,0.25)',
-    fontSize: '9px',
-    textAlign: 'center',
-  },
+  logoText: { color: '#fff', fontSize: '12px', fontWeight: '700', textAlign: 'center' },
+  logoSub: { color: 'rgba(255,255,255,0.25)', fontSize: '9px', textAlign: 'center' },
   nav: { display: 'flex', flexDirection: 'column', gap: '3px' },
   navItem: {
     display: 'flex',
@@ -143,15 +143,8 @@ const styles = {
     border: '1px solid rgba(14,165,233,0.18)',
   },
   navIcon: { fontSize: '14px', flexShrink: 0 },
-  navLabel: {
-    fontSize: '12px',
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.35)',
-  },
-  navLabelActive: {
-    color: '#38bdf8',
-    fontWeight: '600',
-  },
+  navLabel: { fontSize: '12px', fontWeight: '500', color: 'rgba(255,255,255,0.35)' },
+  navLabelActive: { color: '#38bdf8', fontWeight: '600' },
   navBadge: {
     marginLeft: 'auto',
     background: 'rgba(14,165,233,0.15)',
@@ -161,12 +154,7 @@ const styles = {
     padding: '1px 6px',
     borderRadius: '10px',
   },
-  bottom: {
-    marginTop: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  },
+  bottom: { marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' },
   langToggle: {
     display: 'flex',
     background: 'rgba(255,255,255,0.05)',
@@ -185,10 +173,7 @@ const styles = {
     color: 'rgba(255,255,255,0.3)',
     transition: 'all 0.2s',
   },
-  langOptActive: {
-    background: 'rgba(14,165,233,0.15)',
-    color: '#38bdf8',
-  },
+  langOptActive: { background: 'rgba(14,165,233,0.15)', color: '#38bdf8' },
   logoutBtn: {
     display: 'flex',
     alignItems: 'center',
@@ -198,8 +183,5 @@ const styles = {
     cursor: 'pointer',
     transition: 'all 0.2s',
   },
-  logoutLabel: {
-    fontSize: '11px',
-    color: 'rgba(255,255,255,0.3)',
-  },
+  logoutLabel: { fontSize: '11px', color: 'rgba(255,255,255,0.3)' },
 }
