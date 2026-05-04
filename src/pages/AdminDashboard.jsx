@@ -5,195 +5,370 @@ import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
 
 export default function AdminDashboard() {
-  const [lang, setLang] = useState('en')
-  const [modules, setModules] = useState([])
-  const [users, setUsers] = useState([])
-  const [newTitle, setNewTitle] = useState('')
-  const [newContent, setNewContent] = useState('')
-  const [newLang, setNewLang] = useState('English')
-  const [editId, setEditId] = useState(null)
-  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const [lang, setLang]           = useState('en')
+  const [modules, setModules]     = useState([])
+  const [sections, setSections]   = useState([])
+  const [users, setUsers]         = useState([])
+  const [quizCount, setQuizCount] = useState(0)
+  const [badgeCount, setBadgeCount] = useState(0)
+  const [selectedMod, setSelectedMod] = useState(null)
+  const [tab, setTab]             = useState('modules')  // 'modules' | 'sections' | 'users'
+  const [form, setForm]           = useState(null)       // null | 'addSection' | 'editSection'
+  const [formData, setFormData]   = useState({})
+  const [saving, setSaving]       = useState(false)
 
-  useEffect(() => {
-    const init = async () => {
-      const { data } = await supabase.auth.getUser()
-      if (!data.user) { navigate('/login'); return }
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
-      if (profile?.role !== 'admin') { navigate('/home'); return }
-      fetchModules(); fetchUsers()
+  useEffect(function() {
+    async function init() {
+      const { data: auth } = await supabase.auth.getUser()
+      if (!auth.user) { navigate('/login'); return }
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', auth.user.id).maybeSingle()
+      if (!profile || profile.role !== 'admin') { navigate('/home'); return }
+      await loadAll()
     }
     init()
   }, [])
 
-  const fetchModules = async () => { const { data } = await supabase.from('modules').select('*'); setModules(data || []) }
-  const fetchUsers = async () => { const { data } = await supabase.from('profiles').select('*'); setUsers(data || []) }
-
-  const handleSave = async () => {
-    if (!newTitle || !newContent) return
-    setLoading(true)
-    if (editId) {
-      await supabase.from('modules').update({ title: newTitle, content: newContent, language: newLang }).eq('id', editId)
-      setEditId(null)
-    } else {
-      await supabase.from('modules').insert({ title: newTitle, content: newContent, language: newLang })
-    }
-    setNewTitle(''); setNewContent(''); setNewLang('English')
-    setLoading(false); fetchModules()
+  async function loadAll() {
+    const { data: mods }  = await supabase.from('modules').select('*').order('id')
+    const { data: secs }  = await supabase.from('module_sections').select('*').order('order_index')
+    const { data: profs } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+    const { data: prog }  = await supabase.from('progress').select('module_id, quiz_passed, badge_earned')
+    const { data: quizzes } = await supabase.from('quizzes').select('id')
+    setModules(mods || [])
+    setSections(secs || [])
+    setUsers(profs || [])
+    setQuizCount((quizzes || []).length)
+    setBadgeCount((prog || []).filter(function(p) { return p.badge_earned }).length)
   }
 
-  const handleEdit = (mod) => { setEditId(mod.id); setNewTitle(mod.title); setNewContent(mod.content); setNewLang(mod.language) }
-  const handleDelete = async (id) => { if (!window.confirm('Delete this module?')) return; await supabase.from('modules').delete().eq('id', id); fetchModules() }
+  function sectionsForMod(modId) {
+    return sections.filter(function(s) { return s.module_id === modId })
+      .sort(function(a, b) { return a.order_index - b.order_index })
+  }
 
-  const focusInput = e => { e.target.style.borderColor = 'rgba(14,165,233,0.5)'; e.target.style.background = 'rgba(14,165,233,0.04)' }
-  const blurInput = e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.background = 'rgba(255,255,255,0.04)' }
+  function openAddSection(mod) {
+    setSelectedMod(mod)
+    setFormData({ module_id: mod.id, order_index: sectionsForMod(mod.id).length + 1, title: '', body: '', callout_type: '', callout_text: '', key_terms: '[]' })
+    setForm('addSection')
+  }
+
+  function openEditSection(sec) {
+    setFormData({ ...sec, key_terms: typeof sec.key_terms === 'string' ? sec.key_terms : JSON.stringify(sec.key_terms) })
+    setForm('editSection')
+  }
+
+  async function saveSection() {
+    setSaving(true)
+    let payload = {
+      module_id:    formData.module_id,
+      order_index:  parseInt(formData.order_index) || 1,
+      title:        formData.title,
+      body:         formData.body,
+      callout_type: formData.callout_type || null,
+      callout_text: formData.callout_text || null,
+      key_terms:    JSON.parse(formData.key_terms || '[]'),
+    }
+    if (form === 'editSection') {
+      await supabase.from('module_sections').update(payload).eq('id', formData.id)
+    } else {
+      await supabase.from('module_sections').insert(payload)
+    }
+    await loadAll()
+    setSaving(false)
+    setForm(null)
+  }
+
+  async function deleteSection(id) {
+    if (!window.confirm('Delete this section?')) return
+    await supabase.from('module_sections').delete().eq('id', id)
+    await loadAll()
+  }
+
+  async function deleteModule(id) {
+    if (!window.confirm('Delete this module and all its sections and quizzes?')) return
+    await supabase.from('modules').delete().eq('id', id)
+    await loadAll()
+  }
 
   const stats = [
-    { icon: '📚', num: modules.length, label: 'Total modules' },
-    { icon: '👥', num: users.length, label: 'Registered users' },
-    { icon: '🇵🇬', num: modules.filter(m => m.language === 'Tok Pisin').length, label: 'Tok Pisin' },
-    { icon: '🌐', num: modules.filter(m => m.language === 'English').length, label: 'English' },
+    { label: 'Total Users',   value: users.length,  color: '#0ea5e9' },
+    { label: 'Modules',       value: modules.length, color: '#22c55e' },
+    { label: 'Quiz Questions', value: quizCount,     color: '#f97316' },
+    { label: 'Badges Awarded', value: badgeCount,    color: '#a855f7' },
   ]
 
   return (
     <div style={styles.layout}>
       <Sidebar lang={lang} setLang={setLang} isAdmin={true} />
       <div style={styles.main}>
-        <Topbar title="Admin" alertCount={0} />
+        <Topbar title="Admin Dashboard" alertCount={0} />
         <div style={styles.content}>
-          <div style={styles.pageHeader}>
-            <div>
-              <div style={styles.eyebrow}><span style={styles.eyebrowLine} /> Content Management</div>
-              <h1 style={styles.title}>Admin Dashboard</h1>
-              <p style={styles.sub}>Manage modules, users and platform content</p>
-            </div>
-            <span style={styles.adminPill}>Administrator</span>
+
+          {/* Admin badge */}
+          <div style={styles.adminBadge}>🔐 Administrator Mode</div>
+
+          {/* Stats row */}
+          <div style={styles.statsRow}>
+            {stats.map(function(s, i) {
+              return (
+                <div key={i} style={styles.statCard}>
+                  <div style={{ ...styles.statVal, color: s.color }}>{s.value}</div>
+                  <div style={styles.statLabel}>{s.label}</div>
+                </div>
+              )
+            })}
           </div>
 
-          <div style={styles.statsGrid}>
-            {stats.map((s, i) => (
-              <div key={i} style={{ ...styles.statCard, animationDelay: `${i * 0.08}s` }}>
-                <div style={{ fontSize: '22px', marginBottom: '8px', animation: 'float 4s ease-in-out infinite' }}>{s.icon}</div>
-                <div style={styles.statNum}>{s.num}</div>
-                <div style={styles.statLabel}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>{editId ? '✏️ Edit Module' : '➕ Add New Module'}</h2>
-            <div style={styles.formCard}>
-              <div style={styles.formRow}>
-                <div style={{ flex: 1 }}>
-                  <label style={styles.label}>Module Title</label>
-                  <input style={styles.input} placeholder="Enter module title" value={newTitle} onChange={e => setNewTitle(e.target.value)} onFocus={focusInput} onBlur={blurInput} />
-                </div>
-                <div>
-                  <label style={styles.label}>Language</label>
-                  <select style={styles.select} value={newLang} onChange={e => setNewLang(e.target.value)}>
-                    <option>English</option>
-                    <option>Tok Pisin</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label style={styles.label}>Module Content</label>
-                <textarea style={styles.textarea} placeholder="Enter module content..." value={newContent} onChange={e => setNewContent(e.target.value)} rows={4} onFocus={focusInput} onBlur={blurInput} />
-              </div>
-              <div style={styles.formActions}>
-                <button style={styles.saveBtn} onClick={handleSave} disabled={loading}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
-                  {loading ? 'Saving...' : editId ? 'Update module' : 'Add module'}
+          {/* Tabs */}
+          <div style={styles.tabs}>
+            {['modules', 'sections', 'users'].map(function(t) {
+              return (
+                <button
+                  key={t}
+                  style={tab === t ? { ...styles.tab, ...styles.tabActive } : styles.tab}
+                  onClick={function() { setTab(t) }}
+                >
+                  {t === 'modules' ? '📚 Modules' : t === 'sections' ? '📄 Sections' : '👥 Users'}
                 </button>
-                {editId && <button style={styles.cancelBtn} onClick={() => { setEditId(null); setNewTitle(''); setNewContent('') }}>Cancel</button>}
-              </div>
-            </div>
+              )
+            })}
           </div>
 
-          <div style={styles.section}>
-            <h2 style={styles.sectionTitle}>📚 All Modules ({modules.length})</h2>
-            {modules.length === 0 ? (
-              <p style={styles.emptyState}>No modules yet. Add one above!</p>
-            ) : (
-              <div style={styles.tableCard}>
-                <div style={styles.tableHead}>
-                  <span>Title</span>
-                  <span>Language</span>
-                  <span>Actions</span>
+          {/* ── MODULES TAB ── */}
+          {tab === 'modules' && (
+            <div style={styles.panel}>
+              <div style={styles.panelHeader}>
+                <div style={styles.panelTitle}>Manage Modules</div>
+              </div>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    {['ID', 'Title', 'Content Preview', 'Sections', 'Actions'].map(function(h) {
+                      return <th key={h} style={styles.th}>{h}</th>
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {modules.map(function(mod, i) {
+                    return (
+                      <tr key={mod.id} style={i % 2 === 0 ? styles.tr : { ...styles.tr, background: 'rgba(255,255,255,0.02)' }}>
+                        <td style={styles.td}>{mod.id}</td>
+                        <td style={{ ...styles.td, fontWeight: '600', color: '#fff' }}>{mod.title}</td>
+                        <td style={{ ...styles.td, color: 'rgba(255,255,255,0.35)', maxWidth: '280px' }}>{(mod.content || '').substring(0, 80)}...</td>
+                        <td style={styles.td}>{sectionsForMod(mod.id).length}</td>
+                        <td style={styles.td}>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button style={styles.btnBlue} onClick={function() { setSelectedMod(mod); setTab('sections') }}>Sections</button>
+                            <button style={styles.btnRed} onClick={function() { deleteModule(mod.id) }}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── SECTIONS TAB ── */}
+          {tab === 'sections' && (
+            <div style={styles.panel}>
+              <div style={styles.panelHeader}>
+                <div>
+                  <div style={styles.panelTitle}>
+                    {selectedMod ? 'Sections — ' + selectedMod.title : 'Select a module to manage sections'}
+                  </div>
+                  {!selectedMod && (
+                    <div style={styles.panelSub}>Go to the Modules tab and click "Sections" on a module.</div>
+                  )}
                 </div>
-                {modules.map((mod, i) => (
-                  <div key={mod.id} style={{ ...styles.tableRow, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                    <span style={styles.rowTitle}>{mod.title}</span>
-                    <span style={styles.rowLang}>{mod.language}</span>
-                    <div style={styles.rowActions}>
-                      <button style={styles.editBtn} onClick={() => handleEdit(mod)}>Edit</button>
-                      <button style={styles.deleteBtn} onClick={() => handleDelete(mod.id)}>Delete</button>
+                {selectedMod && (
+                  <button style={styles.btnGreen} onClick={function() { openAddSection(selectedMod) }}>
+                    + Add Section
+                  </button>
+                )}
+              </div>
+
+              {/* Module selector */}
+              <div style={styles.modSelector}>
+                {modules.map(function(mod) {
+                  return (
+                    <button
+                      key={mod.id}
+                      style={selectedMod && selectedMod.id === mod.id
+                        ? { ...styles.modChip, ...styles.modChipActive }
+                        : styles.modChip}
+                      onClick={function() { setSelectedMod(mod) }}
+                    >
+                      {mod.title}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {selectedMod && sectionsForMod(selectedMod.id).map(function(sec, i) {
+                return (
+                  <div key={sec.id} style={styles.sectionRow}>
+                    <div style={styles.secOrder}>{sec.order_index}</div>
+                    <div style={styles.secBody}>
+                      <div style={styles.secTitle}>{sec.title}</div>
+                      <div style={styles.secPreview}>{sec.body.substring(0, 120)}...</div>
+                      {sec.callout_type && (
+                        <div style={styles.secCallout}>
+                          {sec.callout_type.toUpperCase()}: {(sec.callout_text || '').substring(0, 80)}...
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <button style={styles.btnBlue} onClick={function() { openEditSection(sec) }}>Edit</button>
+                      <button style={styles.btnRed} onClick={function() { deleteSection(sec.id) }}>Delete</button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )
+              })}
+            </div>
+          )}
 
-          <div style={{ ...styles.section, paddingBottom: '3rem' }}>
-            <h2 style={styles.sectionTitle}>👥 Registered Users ({users.length})</h2>
-            <div style={styles.tableCard}>
-              <div style={{ ...styles.tableHead, gridTemplateColumns: '1fr 1.5fr 0.5fr' }}>
-                <span>Username</span>
-                <span>Email</span>
-                <span>Role</span>
+          {/* ── USERS TAB ── */}
+          {tab === 'users' && (
+            <div style={styles.panel}>
+              <div style={styles.panelHeader}>
+                <div style={styles.panelTitle}>User Accounts ({users.length})</div>
               </div>
-              {users.map((u, i) => (
-                <div key={u.id} style={{ ...styles.tableRow, gridTemplateColumns: '1fr 1.5fr 0.5fr', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                  <span style={styles.rowTitle}>{u.username}</span>
-                  <span style={styles.rowLang}>{u.email}</span>
-                  <span style={{ ...styles.roleBadge, background: u.role === 'admin' ? 'rgba(14,165,233,0.15)' : 'rgba(255,255,255,0.05)', color: u.role === 'admin' ? '#38bdf8' : 'rgba(255,255,255,0.4)', border: u.role === 'admin' ? '1px solid rgba(14,165,233,0.25)' : '1px solid rgba(255,255,255,0.08)' }}>
-                    {u.role}
-                  </span>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    {['Email', 'Name', 'Role', 'Joined'].map(function(h) {
+                      return <th key={h} style={styles.th}>{h}</th>
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map(function(u, i) {
+                    return (
+                      <tr key={u.id} style={i % 2 === 0 ? styles.tr : { ...styles.tr, background: 'rgba(255,255,255,0.02)' }}>
+                        <td style={{ ...styles.td, color: '#38bdf8' }}>{u.email}</td>
+                        <td style={{ ...styles.td, color: '#fff' }}>{u.full_name || '—'}</td>
+                        <td style={styles.td}>
+                          <span style={u.role === 'admin'
+                            ? { ...styles.rolePill, background: 'rgba(249,115,22,0.12)', color: '#fb923c', border: '1px solid rgba(249,115,22,0.25)' }
+                            : styles.rolePill}>
+                            {u.role || 'user'}
+                          </span>
+                        </td>
+                        <td style={styles.td}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* ── SECTION FORM MODAL ── */}
+      {form && (
+        <div style={styles.modalOverlay} onClick={function(e) { if (e.target === e.currentTarget) setForm(null) }}>
+          <div style={styles.modal}>
+            <div style={styles.modalTitle}>
+              {form === 'addSection' ? 'Add Section' : 'Edit Section'}
+            </div>
+
+            {[
+              { key: 'title', label: 'Section Title', type: 'input' },
+              { key: 'order_index', label: 'Order Index', type: 'input' },
+              { key: 'body', label: 'Body Content (separate paragraphs with a blank line)', type: 'textarea', rows: 8 },
+              { key: 'callout_type', label: 'Callout Type (info / tip / warning / danger)', type: 'input' },
+              { key: 'callout_text', label: 'Callout Text', type: 'textarea', rows: 2 },
+              { key: 'key_terms', label: 'Key Terms (JSON array)', type: 'textarea', rows: 3 },
+            ].map(function(field) {
+              return (
+                <div key={field.key} style={styles.formGroup}>
+                  <label style={styles.formLabel}>{field.label}</label>
+                  {field.type === 'textarea' ? (
+                    <textarea
+                      style={{ ...styles.formInput, height: (field.rows * 22) + 'px' }}
+                      value={formData[field.key] || ''}
+                      onChange={function(e) { setFormData(function(prev) { const n = { ...prev }; n[field.key] = e.target.value; return n }) }}
+                    />
+                  ) : (
+                    <input
+                      style={styles.formInput}
+                      value={formData[field.key] || ''}
+                      onChange={function(e) { setFormData(function(prev) { const n = { ...prev }; n[field.key] = e.target.value; return n }) }}
+                    />
+                  )}
                 </div>
-              ))}
+              )
+            })}
+
+            <div style={styles.formBtns}>
+              <button style={styles.btnGreen} onClick={saveSection} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Section'}
+              </button>
+              <button style={styles.btnGhost} onClick={function() { setForm(null) }}>Cancel</button>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
     </div>
   )
 }
 
 const styles = {
-  layout: { display: 'flex', minHeight: '100vh', background: 'linear-gradient(135deg, #050d1a 0%, #071524 60%, #050d12 100%)' },
-  main: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' },
-  content: { padding: '1.5rem 1.25rem', flex: 1 },
-  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', animation: 'fadeUp 0.5s ease both' },
-  eyebrow: { fontSize: '10px', fontWeight: '700', color: 'rgba(14,165,233,0.8)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '0.5rem' },
-  eyebrowLine: { display: 'inline-block', width: '16px', height: '2px', background: 'linear-gradient(90deg, #0ea5e9, #38bdf8)', borderRadius: '2px' },
-  title: { color: '#fff', fontSize: '24px', fontWeight: '800', letterSpacing: '-0.5px', marginBottom: '4px' },
-  sub: { color: 'rgba(255,255,255,0.3)', fontSize: '13px' },
-  adminPill: { background: 'rgba(14,165,233,0.12)', border: '1px solid rgba(14,165,233,0.2)', color: '#38bdf8', fontSize: '11px', fontWeight: '600', padding: '5px 16px', borderRadius: '20px', marginTop: '4px' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '1.5rem' },
-  statCard: { background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px', padding: '1rem 1.25rem', animation: 'numberPop 0.5s ease both' },
-  statNum: { fontSize: '26px', fontWeight: '800', background: 'linear-gradient(135deg, #0ea5e9, #38bdf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '2px' },
-  statLabel: { fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontWeight: '500' },
-  section: { marginBottom: '1.5rem' },
-  sectionTitle: { color: '#fff', fontSize: '15px', fontWeight: '700', marginBottom: '1rem', letterSpacing: '-0.2px' },
-  formCard: { background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '12px' },
-  formRow: { display: 'flex', gap: '12px', alignItems: 'flex-end' },
-  label: { display: 'block', fontSize: '10px', fontWeight: '600', color: 'rgba(255,255,255,0.35)', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  input: { width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', fontSize: '13px', color: '#fff', outline: 'none', transition: 'all 0.2s', fontFamily: 'inherit' },
-  textarea: { width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', fontSize: '13px', color: '#fff', outline: 'none', resize: 'vertical', fontFamily: 'inherit', transition: 'all 0.2s' },
-  select: { padding: '11px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '10px', fontSize: '13px', color: '#fff', outline: 'none', fontFamily: 'inherit', minWidth: '130px' },
-  formActions: { display: 'flex', gap: '10px' },
-  saveBtn: { background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#fff', border: 'none', padding: '11px 22px', borderRadius: '10px', fontSize: '13px', fontWeight: '700', transition: 'all 0.2s', cursor: 'pointer', boxShadow: '0 4px 16px rgba(14,165,233,0.3)' },
-  cancelBtn: { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', padding: '11px 22px', borderRadius: '10px', fontSize: '13px', cursor: 'pointer' },
-  emptyState: { color: 'rgba(255,255,255,0.3)', fontSize: '13px' },
-  tableCard: { background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px', overflow: 'hidden' },
-  tableHead: { display: 'grid', gridTemplateColumns: '2fr 1fr 130px', background: 'rgba(255,255,255,0.03)', padding: '10px 18px', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', borderBottom: '1px solid rgba(255,255,255,0.05)' },
-  tableRow: { display: 'grid', gridTemplateColumns: '2fr 1fr 130px', padding: '12px 18px', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.04)', alignItems: 'center', transition: 'background 0.15s' },
-  rowTitle: { fontWeight: '600', color: '#fff' },
-  rowLang: { color: 'rgba(255,255,255,0.35)', fontSize: '12px' },
-  roleBadge: { fontSize: '10px', padding: '3px 10px', borderRadius: '20px', fontWeight: '700', display: 'inline-block', textAlign: 'center' },
-  rowActions: { display: 'flex', gap: '6px' },
-  editBtn: { fontSize: '11px', padding: '5px 12px', borderRadius: '7px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
-  deleteBtn: { fontSize: '11px', padding: '5px 12px', borderRadius: '7px', border: '1px solid rgba(14,165,233,0.2)', background: 'rgba(14,165,233,0.06)', color: '#38bdf8', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
+  layout:   { display: 'flex', minHeight: '100vh', background: 'linear-gradient(135deg,#050d1a 0%,#071524 60%,#050d12 100%)' },
+  main:     { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'auto' },
+  content:  { padding: '1.25rem 1.25rem', flex: 1 },
+
+  adminBadge: { display: 'inline-block', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.25)', color: '#fb923c', fontSize: '11px', fontWeight: '700', padding: '4px 14px', borderRadius: '20px', marginBottom: '1rem' },
+
+  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '1.5rem' },
+  statCard: { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' },
+  statVal:  { fontSize: '28px', fontWeight: '800', marginBottom: '4px' },
+  statLabel:{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontWeight: '500' },
+
+  tabs:     { display: 'flex', gap: '6px', marginBottom: '1.25rem' },
+  tab:      { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', padding: '8px 18px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive:{ background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.3)', color: '#38bdf8' },
+
+  panel:       { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px', padding: '1.25rem' },
+  panelHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' },
+  panelTitle:  { color: '#fff', fontSize: '14px', fontWeight: '700' },
+  panelSub:    { color: 'rgba(255,255,255,0.3)', fontSize: '12px', marginTop: '4px' },
+
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th:    { color: '#38bdf8', fontSize: '11px', fontWeight: '700', textAlign: 'left', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  tr:    { transition: 'background 0.2s' },
+  td:    { fontSize: '12px', color: 'rgba(255,255,255,0.55)', padding: '11px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)' },
+
+  modSelector: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1rem' },
+  modChip:     { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', padding: '6px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' },
+  modChipActive:{ background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.3)', color: '#38bdf8' },
+
+  sectionRow:  { display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', marginBottom: '8px' },
+  secOrder:    { width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(14,165,233,0.15)', border: '1px solid rgba(14,165,233,0.25)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '800', flexShrink: 0 },
+  secBody:     { flex: 1, minWidth: 0 },
+  secTitle:    { color: '#fff', fontSize: '13px', fontWeight: '700', marginBottom: '4px' },
+  secPreview:  { color: 'rgba(255,255,255,0.35)', fontSize: '11px', lineHeight: '1.5', marginBottom: '4px' },
+  secCallout:  { fontSize: '10px', color: '#fb923c', background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.15)', padding: '3px 10px', borderRadius: '6px', display: 'inline-block' },
+
+  rolePill: { fontSize: '10px', fontWeight: '700', padding: '3px 10px', borderRadius: '20px', background: 'rgba(14,165,233,0.1)', color: '#38bdf8', border: '1px solid rgba(14,165,233,0.2)' },
+
+  btnBlue:  { background: 'rgba(14,165,233,0.1)', color: '#38bdf8', border: '1px solid rgba(14,165,233,0.25)', padding: '6px 14px', borderRadius: '7px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' },
+  btnGreen: { background: 'rgba(34,197,94,0.1)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.25)', padding: '8px 18px', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit' },
+  btnRed:   { background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)', padding: '6px 14px', borderRadius: '7px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', fontFamily: 'inherit' },
+  btnGhost: { background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)', padding: '8px 18px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit' },
+
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1.5rem' },
+  modal:        { background: '#0c1a2e', border: '1px solid rgba(14,165,233,0.2)', borderRadius: '20px', padding: '2rem', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' },
+  modalTitle:   { color: '#fff', fontSize: '18px', fontWeight: '800', marginBottom: '1.5rem' },
+  formGroup:    { marginBottom: '1rem' },
+  formLabel:    { display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' },
+  formInput:    { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', color: '#fff', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', outline: 'none' },
+  formBtns:     { display: 'flex', gap: '10px', marginTop: '1.5rem' },
 }
